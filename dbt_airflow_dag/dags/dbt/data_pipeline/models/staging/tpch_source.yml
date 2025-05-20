@@ -2,16 +2,19 @@ version: 2
 
 sources:
   - name: tpch
+    description: "TPCH snowflake sample data"
     database: SNOWFLAKE_SAMPLE_DATA 
     schema: tpch_sf1
     tables:
       - name: orders
+        description: "This is the orders table from the TPCH dataset"
         columns:
           - name: o_orderkey
             tests:
               - unique
               - not_null
       - name: lineitem
+        description: "This is the lineitem table from the TPCH dataset"
         columns:
           - name: l_orderkey
             tests:
