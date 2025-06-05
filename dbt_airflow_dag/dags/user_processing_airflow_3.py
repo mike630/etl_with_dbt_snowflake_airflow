@@ -4,6 +4,7 @@
 from airflow.sdk import dag, task
 from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
 from airflow.sdk.bases.sensor import PokeReturnValue
+from airflow.providers.postgres.hooks.postgres import PostgresHook
     
 @dag
 def user_processing_new_airflow_3():
@@ -13,7 +14,7 @@ def user_processing_new_airflow_3():
         conn_id="postgres",
         sql="""
         CREATE TABLE IF NOT EXISTS users (
-            id INT PRIMARY KEY,
+            id INT,
             firstname VARCHAR(255),
             lastname VARCHAR(255),
             email VARCHAR(255),
@@ -37,11 +38,15 @@ def user_processing_new_airflow_3():
     
     @task
     def extract_user(fake_user):
+        
+        from datetime import datetime
+        
         dict_data_user = {
             "id": fake_user["id"],
             "firstname": fake_user["personalInfo"]["firstName"],
             "lastname": fake_user["personalInfo"]["lastName"],
-            "email": fake_user["personalInfo"]["email"]
+            "email": fake_user["personalInfo"]["email"],
+            "created_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         
         return dict_data_user
@@ -51,7 +56,7 @@ def user_processing_new_airflow_3():
         
         import csv
         
-        cols = ["id", "firstname", "lastname", "email"]
+        cols = ["id", "firstname", "lastname", "email", "created_at"]
         
         with open('/tmp/processed_user.csv', 'w', newline='') as csvfile:
             
@@ -61,8 +66,20 @@ def user_processing_new_airflow_3():
             
         return 'CSV file created successfully'
     
+    @task
+    def store_user():
+        hook = PostgresHook(postgres_conn_id='postgres')
+        hook.copy_expert(
+            sql="COPY users FROM STDIN WITH DELIMITER AS ','",
+            filename='/tmp/processed_user.csv'
+        )
+    
+    
     fake_user = is_api_available()
+    
+    create_table >> fake_user 
     dict_data_user = extract_user(fake_user)
-    saved_csv = process_user(dict_data_user)
-            
+    process_user_object = process_user(dict_data_user)
+    process_user_object >> store_user()
+    
 user_processing_new_airflow_3()
